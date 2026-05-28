@@ -74,3 +74,8 @@ venv.bak/
 temp/
 tmp/
 .python-version
+
+# Test output files
+tests/*.csv
+tests/*.txt
+tests/*.png
