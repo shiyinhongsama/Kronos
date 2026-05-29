@@ -17,8 +17,19 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.patches import FancyBboxPatch
 
-# 设置中文字体（Windows 使用 SimHei 或 Microsoft YaHei）
-plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'DejaVu Sans']
+# 设置中文字体（直接指定字体文件路径，支持简体中文）
+import matplotlib
+from matplotlib import font_manager
+FONT_PATH = '/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc'
+# 只在尚未加载该路径时添加（避免重复）
+existing = [f for f in font_manager.fontManager.ttflist if FONT_PATH in f.fname]
+if not existing:
+    try:
+        font_manager.fontManager.addfont(FONT_PATH)
+    except Exception:
+        pass  # fallback to name-based setting
+
+plt.rcParams['font.sans-serif'] = ['Noto Sans CJK SC', 'Noto Sans CJK JP', 'SimHei', 'Microsoft YaHei']
 plt.rcParams['axes.unicode_minus'] = False  # 正常显示负号
 
 pd.set_option('display.max_columns', None)
@@ -191,11 +202,11 @@ def print_analysis_report(contract, interval, indicators, signals, pred_df):
 
     # 支撑位和阻力位
     print(f'\n【支撑位与阻力位】')
-    print(f'   强阻力位 (R2): {indicators["resistance_2"]:,.2f} USDT')
-    print(f'   弱阻力位 (R1): {indicators["resistance_1"]:,.2f} USDT')
-    print(f'   当前价格:      {indicators["current_price"]:,.2f} USDT  ◀')
-    print(f'   弱支撑位 (S1): {indicators["support_1"]:,.2f} USDT')
-    print(f'   强支撑位 (S2): {indicators["support_2"]:,.2f} USDT')
+    print(f'   强阻力位 (R2): {indicators["resistance_2"]:.4f} USDT')
+    print(f'   弱阻力位 (R1): {indicators["resistance_1"]:.4f} USDT')
+    print(f'   当前价格:      {indicators["current_price"]:.4f} USDT  ◀')
+    print(f'   弱支撑位 (S1): {indicators["support_1"]:.4f} USDT')
+    print(f'   强支撑位 (S2): {indicators["support_2"]:.4f} USDT')
 
     # 成交量分析
     print(f'\n【成交量分析】')
@@ -246,11 +257,11 @@ def plot_forecast_analysis(hist_df, pred_df, indicators, contract, interval):
 
     # 支撑位和阻力位
     ax1.axhline(y=indicators['resistance_1'], color='#F44336', linestyle=':',
-                alpha=0.7, label=f'阻力位 R1 ({indicators["resistance_1"]:.2f})')
+                alpha=0.7, label=f'阻力位 R1 ({indicators["resistance_1"]:.4f})')
     ax1.axhline(y=indicators['support_1'], color='#4CAF50', linestyle=':',
-                alpha=0.7, label=f'支撑位 S1 ({indicators["support_1"]:.2f})')
+                alpha=0.7, label=f'支撑位 S1 ({indicators["support_1"]:.4f})')
     ax1.axhline(y=indicators['current_price'], color='#9C27B0', linestyle='-',
-                alpha=0.5, label=f'当前价格 ({indicators["current_price"]:.2f})')
+                alpha=0.5, label=f'当前价格 ({indicators["current_price"]:.4f})')
 
     ax1.set_title(f'{contract} ({interval}) - Kronos 未来走势预测',
                   fontsize=16, fontweight='bold')
@@ -385,7 +396,7 @@ def forecast_future(contract='BTC_USDT', interval='1h', lookback=400, pred_len=1
     #
     # 推荐配置:
     #   - 保守预测: T=0.8, top_p=0.8, sample_count=5
-    #   - 标准预测: T=1.0, top_p=0.9, sample_count=1 (当前设置)
+    #   - 标准预测: T=1.0, top_p=0.9, sample_count=1
     #   - 激进预测: T=1.2, top_p=0.95, sample_count=1
     # ======================================================
     print('\n🔮 步骤 4: 执行未来走势预测（请耐心等待）...')
@@ -394,9 +405,9 @@ def forecast_future(contract='BTC_USDT', interval='1h', lookback=400, pred_len=1
         x_timestamp=x_timestamp,
         y_timestamp=y_timestamp,
         pred_len=pred_len,
-        T=0.8,              # 温度参数：1.0 为标准预测
-        top_p=0.8,          # 核采样：保留累积概率 90% 的 token
-        sample_count=5,     # 采样次数：1 为单次采样
+        T=0.8,              # 温度参数：0.8 为保守预测（当前设置）
+        top_p=0.8,          # 核采样：保留累积概率 80% 的 token（当前设置）
+        sample_count=5,     # 采样次数：5次平均（当前设置）
         verbose=True
     )
     pred_df.index = y_timestamp.values  # 设置正确的时间索引
@@ -447,16 +458,26 @@ def forecast_future(contract='BTC_USDT', interval='1h', lookback=400, pred_len=1
 
 
 if __name__ == '__main__':
-    # 预测 BTC/USDT 未来走势
-    # 可修改参数:
-    #   contract: 交易对 (如 'ETH_USDT', 'DOGE_USDT')
+    # 预测 DOGE/USDT 未来走势
+    # 用法: python forecast_crypto.py <contract> <interval> <lookback> <pred_len>
+    # 示例: python forecast_crypto.py DOGE 1h 120 48
+    #   contract: 交易对 (如 'DOGE_USDT', 'ETH_USDT')
     #   interval: 周期 (如 '15m', '1h', '4h')
     #   lookback: 使用的历史数据长度
     #   pred_len: 预测未来数据点数
 
+    import sys
+    contract  = sys.argv[1] if len(sys.argv) > 1 else 'DOGE_USDT'
+    interval  = sys.argv[2] if len(sys.argv) > 2 else '1h'
+    lookback  = int(sys.argv[3]) if len(sys.argv) > 3 else 400
+    pred_len  = int(sys.argv[4]) if len(sys.argv) > 4 else 120
+
+    if '_' not in contract:
+        contract = contract + '_USDT'
+
     pred_df, indicators, signals = forecast_future(
-        contract='DOGE_USDT',
-        interval='15m',
-        lookback=400,
-        pred_len=120  # 预测未来120根K线
+        contract=contract,
+        interval=interval,
+        lookback=lookback,
+        pred_len=pred_len
     )

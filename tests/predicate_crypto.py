@@ -36,6 +36,22 @@ api_client = gate_api.ApiClient(configuration)
 
 
 # 获取K线数据
+def generate_future_timestamps(last_timestamp, interval, pred_len):
+    """生成未来时间戳"""
+    interval_map = {
+        '1m': timedelta(minutes=1),
+        '5m': timedelta(minutes=5),
+        '15m': timedelta(minutes=15),
+        '30m': timedelta(minutes=30),
+        '1h': timedelta(hours=1),
+        '4h': timedelta(hours=4),
+        '1d': timedelta(days=1),
+    }
+    delta = interval_map.get(interval, timedelta(hours=1))
+    future_times = [last_timestamp + delta * (i + 1) for i in range(pred_len)]
+    return pd.Series(future_times)
+
+
 def get_candles(contract='BTC_USDT', interval='1h'):
     # Create an instance of the API class
     api_instance = gate_api.FuturesApi(api_client)
@@ -50,9 +66,7 @@ def get_candles(contract='BTC_USDT', interval='1h'):
 
 
 def plot_prediction(kline_df, pred_df, title='Kronos Crypto Prediction'):
-    """绘制加密货币预测结果"""
-    pred_df.index = kline_df.index[-pred_df.shape[0]:]
-
+    """绘制加密货币预测结果（pred_df.index 已经是未来时间戳）"""
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 9), sharex=True)
 
     # 收盘价对比
@@ -120,15 +134,15 @@ def run_prediction(contract='BTC_USDT', interval='1h', lookback=400, pred_len=12
 
     # 3. 准备输入
     print(f'\n📝 步骤 3: 准备预测输入 (lookback={lookback}, pred_len={pred_len})...')
-    total_len = lookback + pred_len
-    if len(df) < total_len:
-        print(f'   ⚠️ 数据不足! 仅有 {len(df)} 条，需要 {total_len} 条')
-        lookback = len(df) - pred_len
+
+    if len(df) < lookback:
+        print(f'   ⚠️ 数据不足! 仅有 {len(df)} 条，需要 {lookback} 条')
+        lookback = len(df)
         print(f'   自动调整 lookback={lookback}')
 
-    x_df = df.iloc[-total_len:-pred_len][cols].copy()
-    x_timestamp = pd.Series(df.index[-total_len:-pred_len]).reset_index(drop=True)
-    y_timestamp = pd.Series(df.index[-pred_len:]).reset_index(drop=True)
+    x_df = df.iloc[-lookback:][cols].copy()
+    x_timestamp = pd.Series(df.index[-lookback:]).reset_index(drop=True)
+    y_timestamp = generate_future_timestamps(df.index[-1], interval, pred_len)
 
     print(f'   历史数据: {len(x_df)} 条')
     print(f'   预测长度: {pred_len} 条')
@@ -164,7 +178,9 @@ def run_prediction(contract='BTC_USDT', interval='1h', lookback=400, pred_len=12
 
     # 6. 可视化
     print('\n📊 步骤 6: 可视化结果...')
-    kline_df = df.iloc[-total_len:].copy()
+    kline_df = df.iloc[-lookback:].copy()
+    kline_df.index = x_timestamp.values
+    pred_df.index = y_timestamp.values
     plot_prediction(kline_df, pred_df, title=f'{contract} ({interval}) 预测')
 
     # 7. 保存预测结果
